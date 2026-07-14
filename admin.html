@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Catalog Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#1B2430; --paper:#F7F5F0; --paper-2:#EFEBE2;
+    --gold:#C08B2C; --gold-deep:#8f660f; --sage:#6B7A63;
+    --line: rgba(27,36,48,0.16); --danger:#a5342a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif; -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding: 30px 4vw 20px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px;
+  }
+  h1{ font-family:'Fraunces', serif; font-size:26px; margin:0; }
+  .sub{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--sage); margin-top:6px;}
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+  button, .file-btn{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:13px; font-weight:600;
+    padding:9px 14px; border-radius:2px; cursor:pointer;
+    border:1px solid var(--ink); background:var(--paper);
+  }
+  .btn-primary{ background:var(--gold); border-color:var(--gold); color:var(--ink); }
+  .btn-primary:hover{ background:var(--gold-deep); border-color:var(--gold-deep); color:var(--paper); }
+  .btn-ghost:hover{ background:var(--paper-2); }
+  .btn-danger{ border-color:var(--danger); color:var(--danger); }
+  .btn-danger:hover{ background:var(--danger); color:var(--paper); }
+  input[type=file]{ display:none; }
+
+  main{ padding: 24px 4vw 80px; }
+  .note{
+    font-size:13px; color:#3c4653; background:var(--paper-2);
+    border-left:3px solid var(--gold); padding:12px 14px; margin-bottom:20px; max-width:70ch; line-height:1.55;
+  }
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); background:var(--paper); }
+  table{ border-collapse:collapse; width:100%; min-width:1100px; }
+  th{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.05em; text-align:left; padding:10px 8px; background:var(--ink); color:var(--paper);
+    position:sticky; top:0; white-space:nowrap;
+  }
+  td{ padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td input, td textarea{
+    width:100%; border:1px solid transparent; background:transparent;
+    font-family:'IBM Plex Sans', sans-serif; font-size:13px; padding:6px; border-radius:2px;
+    resize:vertical;
+  }
+  td input:focus, td textarea:focus{ border-color:var(--gold); background:var(--paper); outline:none; }
+  td.narrow{ width:70px; }
+  td.wide{ min-width:220px; }
+  .row-del{ background:none; border:none; color:var(--danger); font-size:16px; cursor:pointer; padding:4px 8px;}
+  .row-del:hover{ text-decoration:underline; }
+  .thumb-preview{ width:52px; height:40px; object-fit:cover; border:1px solid var(--line); display:block; margin-top:4px;}
+
+  .toolbar-bottom{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; align-items:center; }
+  .count{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--sage); margin-left:auto; }
+
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--ink); color:var(--paper);
+    padding:12px 18px; border-radius:2px; font-size:13px; font-family:'IBM Plex Sans', sans-serif;
+    opacity:0; transform:translateY(8px); transition:all .25s ease; pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Catalog editor</h1>
+    <div class="sub">Edit rows below, then export — this does not save automatically.</div>
+  </div>
+  <div class="actions">
+    <label class="file-btn btn-ghost" for="file-input">Load a different .xlsx</label>
+    <input type="file" id="file-input" accept=".xlsx">
+    <button class="btn-ghost" id="add-row">+ Add product</button>
+    <button class="btn-primary" id="export-btn">Export products.xlsx</button>
+  </div>
+</header>
+
+<main>
+  <p class="note">
+    This page edits the catalog <strong>in your browser only</strong> — nothing is uploaded anywhere, and there's no database.
+    When you're done, click <strong>Export products.xlsx</strong> to download the updated file, then replace
+    <code>products.xlsx</code> in your GitHub repo with it (upload the file and commit, or <code>git add / commit / push</code>).
+    The public page reads that file directly, so the site updates as soon as the new file is live.
+  </p>
+
+  <div class="table-wrap">
+    <table id="product-table">
+      <thead>
+        <tr>
+          <th class="narrow">ID</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th class="narrow">Price</th>
+          <th class="narrow">Currency</th>
+          <th class="wide">Description</th>
+          <th class="wide">Image URL</th>
+          <th class="wide">Affiliate link</th>
+          <th class="narrow">Featured</th>
+          <th>Tags</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <div class="toolbar-bottom">
+    <button class="btn-ghost" id="add-row-2">+ Add product</button>
+    <span class="count" id="row-count"></span>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLUMNS = ["id","name","category","price","currency","description","image_url","affiliate_link","featured","tags"];
+let rows = [];
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function nextId(){
+  const ids = rows.map(r => Number(r.id)).filter(n => !isNaN(n));
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+function rowHtml(r, idx){
+  const val = (k) => (r[k] ?? '');
+  return `
+    <tr data-idx="${idx}">
+      <td class="narrow"><input data-k="id" type="text" value="${escapeAttr(val('id'))}"></td>
+      <td class="wide"><input data-k="name" type="text" value="${escapeAttr(val('name'))}"></td>
+      <td><input data-k="category" type="text" value="${escapeAttr(val('category'))}"></td>
+      <td class="narrow"><input data-k="price" type="text" value="${escapeAttr(val('price'))}"></td>
+      <td class="narrow"><input data-k="currency" type="text" value="${escapeAttr(val('currency'))}"></td>
+      <td class="wide"><textarea data-k="description" rows="2">${escapeHtml(val('description'))}</textarea></td>
+      <td class="wide">
+        <input data-k="image_url" type="text" value="${escapeAttr(val('image_url'))}">
+        <img class="thumb-preview" src="${escapeAttr(val('image_url'))}" onerror="this.style.visibility='hidden'">
+      </td>
+      <td class="wide"><input data-k="affiliate_link" type="text" value="${escapeAttr(val('affiliate_link'))}"></td>
+      <td class="narrow"><input data-k="featured" type="text" value="${escapeAttr(val('featured'))}" placeholder="yes/no"></td>
+      <td><input data-k="tags" type="text" value="${escapeAttr(val('tags'))}"></td>
+      <td><button class="row-del" title="Delete row" data-idx="${idx}">✕</button></td>
+    </tr>`;
+}
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+}
+function escapeAttr(str){
+  return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+function renderTable(){
+  const body = document.getElementById('table-body');
+  body.innerHTML = rows.map(rowHtml).join('');
+  document.getElementById('row-count').textContent = rows.length + ' product' + (rows.length===1?'':'s');
+
+  body.querySelectorAll('input, textarea').forEach(el => {
+    el.addEventListener('input', (e) => {
+      const tr = e.target.closest('tr');
+      const idx = Number(tr.dataset.idx);
+      rows[idx][e.target.dataset.k] = e.target.value;
+      if (e.target.dataset.k === 'image_url'){
+        const img = tr.querySelector('.thumb-preview');
+        img.style.visibility = 'visible';
+        img.src = e.target.value;
+      }
+    });
+  });
+  body.querySelectorAll('.row-del').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = Number(e.target.dataset.idx);
+      rows.splice(idx, 1);
+      renderTable();
+      toast('Row removed');
+    });
+  });
+}
+
+function addRow(){
+  rows.push({ id: nextId(), name: '', category: '', price: '', currency: 'USD',
+              description: '', image_url: '', affiliate_link: '', featured: 'no', tags: '' });
+  renderTable();
+  document.getElementById('table-body').lastElementChild?.querySelector('input')?.focus();
+}
+document.getElementById('add-row').addEventListener('click', addRow);
+document.getElementById('add-row-2').addEventListener('click', addRow);
+
+async function loadWorkbook(buf){
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sheet = wb.Sheets['Products'] || wb.Sheets[wb.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  rows = data.filter(r => COLUMNS.some(c => r[c] !== '' && r[c] !== undefined));
+  renderTable();
+}
+
+async function loadDefault(){
+  try{
+    const res = await fetch('products.xlsx', { cache: 'no-store' });
+    if (!res.ok) throw new Error('not found');
+    const buf = await res.arrayBuffer();
+    await loadWorkbook(buf);
+    toast('Loaded products.xlsx from this folder');
+  }catch(e){
+    rows = [];
+    renderTable();
+    toast('No products.xlsx found here — starting from an empty table');
+  }
+}
+
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const buf = await file.arrayBuffer();
+  await loadWorkbook(buf);
+  toast('Loaded ' + file.name);
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const cleanRows = rows.map(r => {
+    const out = {};
+    COLUMNS.forEach(c => out[c] = r[c] ?? '');
+    return out;
+  });
+  const ws = XLSX.utils.json_to_sheet(cleanRows, { header: COLUMNS });
+  ws['!cols'] = [{wch:6},{wch:32},{wch:14},{wch:10},{wch:10},{wch:45},{wch:42},{wch:42},{wch:10},{wch:22}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  XLSX.writeFile(wb, 'products.xlsx');
+  toast('Downloaded products.xlsx — now upload it to your GitHub repo');
+});
+
+loadDefault();
+</script>
+</body>
+</html>

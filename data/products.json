@@ -1,0 +1,16 @@
+[
+  {
+    "title":"Apple AirPods Pro",
+    "description":"Noise cancelling wireless earbuds.",
+    "price":"₹22,999",
+    "image":"images/products/airpods.jpg",
+    "link":"https://amazon.in/xxxx"
+  },
+  {
+    "title":"Samsung Galaxy S25",
+    "description":"Latest flagship smartphone.",
+    "price":"₹79,999",
+    "image":"images/products/s25.jpg",
+    "link":"https://amazon.in/yyyy"
+  }
+]
